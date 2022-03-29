@@ -29,6 +29,7 @@ Directory.CreateDirectory(projFolder);
 
 // --------------- Start exporting ---------------
 
+//total of all the resources in the file
 var resourceNum = Data.Sprites.Count + 
     Data.Backgrounds.Count + 
     Data.GameObjects.Count + 
@@ -244,7 +245,7 @@ void ExportGameObject(UndertaleGameObject gameObject)
         if (gameObject.Events[i].Count > 0)
         {
             // Traversing event list
-            foreach (var j in gameObject.Events[i])
+            foreach (var j in gameObject.Events[i])//for every event
             {
                 var eventsNode = gmx.Element("object").Element("events");
 
@@ -270,9 +271,9 @@ void ExportGameObject(UndertaleGameObject gameObject)
                 foreach (var k in j.Actions)
                 {
                     actionNode.Add(
-                        new XElement("libid", k.LibID.ToString()),
-                        new XElement("id", k.ID.ToString()),
-                        new XElement("kind", k.Kind.ToString()),
+                        new XElement("libid", "1"),//k.LibID.ToString()),//forcing static values on all of these (because of the manner by which they are exported by the program)
+                        new XElement("id", "603"),//k.ID.ToString()),//see UndertaleGameObject.cs: this value should always be 603, but it isn't
+                        new XElement("kind", "7"),//k.Kind.ToString()),
                         new XElement("userelative", BoolToString(k.UseRelative)),
                         new XElement("isquestion", BoolToString(k.IsQuestion)),
                         new XElement("useapplyto", BoolToString(k.UseApplyTo)),
@@ -322,8 +323,8 @@ void ExportRoom(UndertaleRoom room)
             new XElement("isometric", "0"),
             new XElement("speed", room.Speed.ToString()),
             new XElement("persistent", BoolToString(room.Persistent)),
-            new XElement("colour", room.BackgroundColor.ToString()),
-			new XElement("showcolour", BoolToString(room.DrawBackgroundColor)),
+            new XElement("colour", (room.BackgroundColor - 0xFF000000).ToString()),//ALTER: this still counts the "alpha" channel of the BackgroundColor, which with the newer modtool, has been set to FF (0xFF000000). In Big_Endian format, this reads as 4278190080. GameMaker Studio does not like this
+            new XElement("showcolour", BoolToString(room.DrawBackgroundColor)),
             new XElement("code", room.CreationCodeId != null ? Decompiler.Decompile(room.CreationCodeId, DECOMPILE_CONTEXT.Value) : ""),
             new XElement("enableViews", BoolToString(room.Flags.HasFlag(UndertaleRoom.RoomEntryFlags.EnableViews))),
             new XElement("clearViewBackground", BoolToString(room.Flags.HasFlag(UndertaleRoom.RoomEntryFlags.ShowColor))),
@@ -357,8 +358,8 @@ void ExportRoom(UndertaleRoom room)
             new XAttribute("name", i.BackgroundDefinition is null ? "" : i.BackgroundDefinition.Name.Content),
             new XAttribute("x", i.X.ToString()),
             new XAttribute("y", i.Y.ToString()),
-            new XAttribute("htiled", i.TileX.ToString()),
-            new XAttribute("vtiled", i.TileY.ToString()),
+            new XAttribute("htiled", Convert.ToBoolean(i.TileX) ? "-1" : "0"),//i.TileX.ToString()),//(these values are boolean in the IDE, they specify if the map should loop the background h/v)
+            new XAttribute("vtiled", Convert.ToBoolean(i.TileY) ? "-1" : "0"),//i.TileY.ToString()),//ALTER
             new XAttribute("hspeed", i.SpeedX.ToString()),
             new XAttribute("vspeed", i.SpeedY.ToString()),
             new XAttribute("stretch", "0")
@@ -438,8 +439,8 @@ void ExportRoom(UndertaleRoom room)
 	//Room Physics
 	
 	gmx.Element("room").Add(
-		new XElement("PhysicsWorld", room.World),
-		new XElement("PhysicsWorldTop", room.Top),
+		new XElement("PhysicsWorld", room.World ? -1 : 0),//ALTER: (convert from true/false to -1 or 0)
+        new XElement("PhysicsWorldTop", room.Top),
 		new XElement("PhysicsWorldLeft", room.Left),
 		new XElement("PhysicsWorldRight", room.Right),
 		new XElement("PhysicsWorldBottom", room.Bottom),
@@ -610,21 +611,22 @@ async Task ExportTimelines()
     Directory.CreateDirectory(projFolder + "/timelines");
     await Task.Run(() => Parallel.ForEach(Data.Timelines, ExportTimeline));
 }
+
 void ExportTimeline(UndertaleTimeline timeline)
 {
     UpdateProgressBar(null, $"Exporting timeline: {timeline.Name.Content}", progress++, resourceNum);
 
     // Save the timeline GMX
-    var gmx = new XDocument(
-        new XComment(gmxDeclaration),
-        new XElement("timeline")
+    var gmx = new XDocument(//this does the saving in XML format
+        new XComment(gmxDeclaration),//XML comment
+        new XElement("timeline")//I think I understand now
     );
     foreach (var i in timeline.Moments)
     {
         var entryNode = new XElement("entry");
-        entryNode.Add(new XElement("step", i.Item1));
+        entryNode.Add(new XElement("step", i.Step));//I don't know where "Item1" comes into play... (Item1 and Item2 replaced with Step and Event, respectively)
         entryNode.Add(new XElement("event"));
-        foreach (var j in i.Item2)
+        foreach (var j in i.Event)//same goes for Item2... and the modTool doesn't like it either
         {
             entryNode.Element("event").Add(
                 new XElement("action",
